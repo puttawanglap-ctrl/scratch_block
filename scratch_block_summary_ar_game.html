@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สรุปบล็อกคำสั่ง Scratch - ห้องเรียนครูพุทธา (AR Game Edition)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Sarabun & Mali for cute kid style -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;500;700&family=Sarabun:wght@400;600;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome for cute icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- MediaPipe libraries for Hand Tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    body {
+      font-family: 'Mali', 'Sarabun', sans-serif;
+      background-color: #ffeef8;
+      overflow-x: hidden;
+    }
+    
+    /* Cloud background animation */
+    .cloud-bg {
+      position: absolute;
+      background: white;
+      border-radius: 100px;
+      opacity: 0.3;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .cloud-bg::before, .cloud-bg::after {
+      content: '';
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+    }
+    
+    @keyframes floatCloud {
+      0% { transform: translateX(-150px); }
+      100% { transform: translateX(calc(100vw + 150px)); }
+    }
+
+    /* REALISTIC SCRATCH BLOCK GEOMETRY USING ADVANCED CLIP-PATH
+      This models the classic Notch on top and Socket at the bottom 
+    */
+    .scratch-block {
+      position: relative;
+      /* Top Notch: (15px 0%, 20px 4px, 35px 4px, 40px 0%) */
+      /* Bottom Socket: (40px calc(100% - 4px), 35px 100%, 20px 100%, 15px calc(100% - 4px)) */
+      clip-path: polygon(
+        0% 0%, 12px 0%, 16px 5px, 28px 5px, 32px 0%, 100% 0%, 
+        100% calc(100% - 5px), 32px calc(100% - 5px), 28px 100%, 16px 100%, 12px calc(100% - 5px), 0% calc(100% - 5px)
+      );
+      padding: 10px 14px 14px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: inset 0 2px 0px rgba(255,255,255,0.4), 0 4px 6px rgba(0,0,0,0.1);
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    /* Scratch Hat Block Style (For events, rounded top, socket bottom) */
+    .scratch-block-hat {
+      clip-path: polygon(
+        0% 50%, 15% 15%, 50% 0%, 85% 15%, 100% 50%,
+        100% calc(100% - 5px), 32px calc(100% - 5px), 28px 100%, 16px 100%, 12px calc(100% - 5px), 0% calc(100% - 5px)
+      ) !important;
+      padding-top: 14px;
+    }
+
+    /* Scratch C-Block Style (For Forever loops / Controls) */
+    .scratch-block-c {
+      clip-path: polygon(
+        0% 0%, 12px 0%, 16px 5px, 28px 5px, 32px 0%, 100% 0%,
+        100% 12px, 35px 12px, 31px 17px, 19px 17px, 15px 12px, 15px calc(100% - 17px), 19px calc(100% - 12px), 31px calc(100% - 12px), 35px calc(100% - 17px), 100% calc(100% - 17px),
+        100% calc(100% - 5px), 32px calc(100% - 5px), 28px 100%, 16px 100%, 12px calc(100% - 5px), 0% calc(100% - 5px)
+      ) !important;
+      padding-bottom: 24px;
+    }
+
+    .scratch-block:hover {
+      transform: scale(1.04) translateY(-2px);
+      filter: brightness(1.1);
+    }
+
+    /* Realistic Inner Inputs */
+    .scratch-input-num {
+      background: white;
+      color: black;
+      border-radius: 10px;
+      padding: 1px 8px;
+      font-size: 10px;
+      font-weight: 800;
+      border: 1px solid rgba(0,0,0,0.15);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+      display: inline-block;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    .scratch-input-text {
+      background: white;
+      color: black;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: 800;
+      border: 1px solid rgba(0,0,0,0.15);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+      display: inline-block;
+    }
+
+    .scratch-dropdown {
+      background: rgba(0, 0, 0, 0.15);
+      color: white;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    /* Special style for floating blocks inside the game */
+    .floating-game-block {
+      position: absolute;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.1s ease;
+      animation: pulse-glow 1.5s infinite alternate;
+      z-index: 40;
+    }
+
+    @keyframes pulse-glow {
+      0% { filter: drop-shadow(0 4px 6px rgba(255,255,255,0.2)); }
+      100% { filter: drop-shadow(0 8px 16px rgba(255,255,255,0.7)); }
+    }
+    
+    /* Magic cursor effect */
+    #magic-cursor {
+      position: fixed;
+      width: 24px;
+      height: 24px;
+      background: rgba(239, 68, 68, 0.9);
+      border: 3px solid #facc15;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: width 0.1s, height 0.1s;
+      box-shadow: 0 0 15px #facc15;
+    }
+    #magic-cursor.pinched {
+      width: 14px;
+      height: 14px;
+      background: #22c55e;
+      border-color: white;
+      box-shadow: 0 0 20px #22c55e;
+    }
+
+    /* Firework canvas overlay */
+    #fireworks-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* Print styles for certificate */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #certificate-modal-content, #certificate-modal-content * {
+        visibility: visible;
+      }
+      #certificate-modal-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    /* CSS Guardrail */
+    .hidden-force {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="relative min-h-screen flex flex-col justify-between overflow-x-hidden pb-10">
+
+  <!-- Background Clouds & Stars (Drawn by JS) -->
+  <div id="sky-background" class="absolute inset-0 overflow-hidden pointer-events-none z-10"></div>
+
+  <!-- FIREWORKS CANVAS -->
+  <canvas id="fireworks-canvas"></canvas>
+
+  <!-- MAGIC CURSOR FOR AR TRACKING -->
+  <div id="magic-cursor" class="hidden">
+    <div class="absolute -inset-1 rounded-full animate-ping bg-yellow-400 opacity-75"></div>
+  </div>
+
+  <!-- FULLSCREEN WEBCAM BACKGROUND & TRACKING CANVAS -->
+  <video id="webcam-video" autoplay playsinline muted class="fixed inset-0 w-full h-full object-cover opacity-15 pointer-events-none transform -scale-x-100 z-0 hidden"></video>
+  <canvas id="tracking-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-30 transform -scale-x-100 hidden"></canvas>
+
+  <!-- TOP HEADER & CONTROLS -->
+  <header class="relative z-20 w-full max-w-7xl mx-auto px-4 pt-4">
+    <div class="bg-white/85 backdrop-blur-md rounded-3xl p-4 shadow-xl border-4 border-pink-200 flex flex-wrap items-center justify-between gap-4">
+      <!-- Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-full bg-pink-400 flex items-center justify-center text-white text-2xl shadow-md animate-bounce">
+          <i class="fa-solid fa-cat"></i>
+        </div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-bold text-pink-600">ห้องเรียนครูพุทธา 🐱✨</h1>
+          <p class="text-xs md:text-sm text-pink-400 font-semibold">สรุปบล็อกคำสั่ง Scratch แสนสนุก & เกม AR</p>
+        </div>
+      </div>
+
+      <!-- Control buttons -->
+      <div class="flex items-center flex-wrap gap-2">
+        <button id="btn-learn-mode" class="px-3 py-1.5 rounded-2xl font-bold text-white bg-pink-500 hover:bg-pink-600 transition shadow-md flex items-center gap-1.5 border-b-4 border-pink-700 text-xs sm:text-sm">
+          <i class="fa-solid fa-graduation-cap"></i> โหมดเรียนรู้
+        </button>
+        <button id="btn-game-mode" class="px-3 py-1.5 rounded-2xl font-bold text-pink-700 bg-yellow-300 hover:bg-yellow-400 transition shadow-md flex items-center gap-1.5 border-b-4 border-yellow-500 text-xs sm:text-sm">
+          <i class="fa-solid fa-gamepad"></i> เกมจับคู่ธรรมดา
+        </button>
+        <button id="btn-floating-game-mode" class="px-3 py-1.5 rounded-2xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition shadow-md flex items-center gap-1.5 border-b-4 border-emerald-700 text-xs sm:text-sm">
+          <i class="fa-solid fa-cloud-bolt animate-bounce"></i> ⚡ เกมบล็อกลอยฟ้าขนาดใหญ่
+        </button>
+        <button id="btn-toggle-ar" class="px-3 py-1.5 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 transition shadow-md flex items-center gap-1.5 border-b-4 border-indigo-800 text-xs sm:text-sm">
+          <i class="fa-solid fa-camera"></i> เปิดกล้องควบคุม (AR)
+        </button>
+      </div>
+
+      <!-- Stats Bar -->
+      <div class="flex items-center gap-4 bg-pink-50 px-4 py-2 rounded-2xl border-2 border-pink-100">
+        <div class="text-center">
+          <span class="block text-xs font-bold text-gray-400">โหมดปัจจุบัน</span>
+          <span id="current-mode-label" class="font-bold text-pink-600">📖 เรียนรู้</span>
+        </div>
+        <div class="h-8 w-px bg-pink-200"></div>
+        <div class="text-center">
+          <span class="block text-xs font-bold text-gray-400">คะแนนสะสม</span>
+          <span id="game-score" class="font-extrabold text-lg text-emerald-500">0 / 100</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- AR INFORMATION FLOATING BADGE -->
+  <div id="ar-info-badge" class="fixed bottom-4 left-4 z-20 bg-indigo-600 text-white px-4 py-2.5 rounded-2xl shadow-xl font-bold text-xs flex items-center gap-2 animate-bounce hidden">
+    <i class="fa-solid fa-hand-sparkles"></i>
+    <span>ระบบ AR ทำงาน: ขยับนิ้วชี้เพื่อควบคุม และจีบนิ้วชี้+โป้งเพื่อคลิกได้เลย!</span>
+  </div>
+
+  <!-- MAIN WORKSPACE CONTAINER -->
+  <main class="relative z-20 w-full max-w-7xl mx-auto px-4 mt-6 min-h-[550px]">
+    
+    <!-- STANDARD INTERACTIVE INTERFACE (Splitted Columns) -->
+    <div id="standard-app-layout" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch transition-all duration-300">
+      
+      <!-- LEFT: CATEGORIES PALETTE (3 cols) -->
+      <section id="left-categories" class="lg:col-span-3 bg-white/90 backdrop-blur-sm rounded-3xl p-4 shadow-xl border-4 border-pink-100 flex flex-col gap-2">
+        <h2 class="text-md font-bold text-gray-600 mb-2 px-1 border-b pb-1 flex items-center gap-2">
+          <i class="fa-solid fa-shapes text-pink-400"></i> หมวดหมู่บล็อกคำสั่ง
+        </h2>
+        <div id="category-list" class="flex flex-col gap-2 overflow-y-auto max-h-[480px] pr-1">
+          <!-- JS will populate categories dynamically -->
+        </div>
+      </section>
+
+      <!-- MIDDLE: BLOCKS STORAGE (4 cols) -->
+      <section id="middle-blocks" class="lg:col-span-4 bg-white/90 backdrop-blur-sm rounded-3xl p-4 shadow-xl border-4 border-pink-100 flex flex-col">
+        <div class="flex items-center justify-between mb-2 pb-1 border-b">
+          <h2 class="text-md font-bold text-gray-600 flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-pink-400"></i> รายการบล็อก
+          </h2>
+          <span id="selected-category-name" class="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700">การเคลื่อนที่</span>
+        </div>
+        <div id="blocks-container" class="flex flex-col gap-4 overflow-y-auto max-h-[450px] p-2 flex-grow">
+          <!-- JS will populate blocks based on selected category -->
+        </div>
+      </section>
+
+      <!-- RIGHT: SCRIPTING AREA & STAGE PLAYGROUND (5 cols) -->
+      <section class="lg:col-span-5 flex flex-col gap-4">
+        
+        <!-- INSTRUCTION / MISSION BAR (Crucial for Game Mode) -->
+        <div id="mission-bar" class="bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl p-4 shadow-lg text-white border-2 border-white flex flex-col gap-1 transition-all duration-300">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider opacity-90"><i class="fa-solid fa-star text-yellow-300 animate-spin"></i> คำแนะนำและภารกิจ</span>
+            <span id="question-count-badge" class="text-xs bg-white/20 px-2 py-0.5 rounded-full font-bold hidden-force">ข้อที่ 1/10</span>
+          </div>
+          <p id="mission-instruction-text" class="text-md font-bold text-yellow-100">
+            โหมดเรียนรู้: ลองนำเมาส์ไปชี้ที่บล็อก หรือคลิกบล็อกเพื่อทดลองดูการทำงานของบล็อกในหน้าต่างจำลองได้เลยนะเด็กๆ!
+          </p>
+        </div>
+
+        <!-- SCRIPTING & STAGE CONTAINER -->
+        <div class="bg-white/90 backdrop-blur-sm rounded-3xl p-4 shadow-xl border-4 border-pink-100 flex flex-col gap-3 flex-grow">
+          <div class="grid grid-cols-2 gap-2 text-xs font-bold border-b pb-2 text-gray-500">
+            <div class="flex items-center gap-1"><i class="fa-solid fa-code text-indigo-400"></i> พื้นที่เขียนสคริปต์จำลอง</div>
+            <div class="flex items-center gap-1"><i class="fa-solid fa-play text-emerald-400"></i> เวทีแสดงผล (Stage)</div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 flex-grow">
+            <!-- Coding/Workspace Area (sm:6) -->
+            <div id="workspace" class="sm:col-span-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl p-3 relative min-h-[220px] flex flex-col justify-start items-center overflow-y-auto gap-3">
+              <div id="workspace-placeholder" class="text-center p-4 my-auto">
+                <i class="fa-solid fa-puzzle-piece text-4xl text-slate-300 mb-2 block animate-pulse"></i>
+                <p class="text-xs text-slate-400">ดับเบิลคลิกบล็อกเพื่อเพิ่มเข้ามาในสคริปต์</p>
+              </div>
+              <!-- Placed Blocks will go here -->
+            </div>
+
+            <!-- Stage (sm:6) -->
+            <div id="stage-viewport" class="sm:col-span-6 bg-sky-100 rounded-2xl relative overflow-hidden flex flex-col justify-between items-center p-3 border-2 border-sky-200 min-h-[280px]">
+              <!-- Stage Header (Green Flag / Stop) -->
+              <div class="w-full flex justify-between items-center z-10">
+                <div class="flex items-center gap-1 bg-white/50 px-2 py-1 rounded-full text-[10px]">
+                  <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                  <span class="font-bold text-gray-600">สไปรท์แมว</span>
+                </div>
+                <div class="flex gap-2">
+                  <button id="btn-stage-play" class="w-7 h-7 bg-emerald-500 text-white rounded-full flex items-center justify-center text-xs shadow hover:bg-emerald-600 transition">
+                    <i class="fa-solid fa-flag"></i>
+                  </button>
+                  <button id="btn-stage-stop" class="w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow hover:bg-red-600 transition">
+                    <i class="fa-solid fa-circle-stop"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Sprite Container (Scratch Cat Emoji) -->
+              <div id="sprite-canvas" class="relative w-full flex-grow flex items-center justify-center transition-all duration-300 transform">
+                <!-- Speech Bubble -->
+                <div id="speech-bubble" class="absolute -top-10 left-12 bg-white text-gray-800 text-xs font-bold px-3 py-2 rounded-2xl shadow-md border-2 border-gray-100 hidden">
+                  <p id="speech-text">สวัสดีเด็กๆ!</p>
+                  <div class="absolute bottom-0 left-3 w-3 h-3 bg-white border-b-2 border-r-2 border-gray-100 transform rotate-45 translate-y-1.5"></div>
+                </div>
+                <!-- Cat Sprite -->
+                <div id="scratch-cat" class="text-7xl select-none filter drop-shadow-md cursor-pointer transition-all duration-500 ease-out z-10">
+                  🐱
+                </div>
+              </div>
+
+              <!-- Sprite Status -->
+              <div class="w-full flex justify-between items-center text-[10px] bg-white/70 px-2 py-1 rounded-lg text-gray-500 font-bold z-10">
+                <span>X: <span id="sprite-x">0</span></span>
+                <span>Y: <span id="sprite-y">0</span></span>
+                <span>ทิศทาง: <span id="sprite-dir">90</span>°</span>
+                <span>ขนาด: <span id="sprite-size">100</span>%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- HUGE SPECIALLY IMPLEMENTED FULL-WORKSPACE ARCADE CABINET OVERLAY FOR FLOATING GAME -->
+    <div id="floating-game-area" class="absolute inset-0 bg-gradient-to-b from-indigo-950 via-purple-900 to-indigo-950 rounded-3xl p-6 border-4 border-emerald-400 shadow-2xl flex flex-col justify-between z-40 hidden">
+      
+      <!-- Top header layout -->
+      <div class="flex flex-col sm:flex-row justify-between items-center gap-3 bg-black/40 p-4 rounded-2xl border border-white/10 text-white">
+        <div class="flex items-center gap-2">
+          <span class="text-3xl animate-bounce">🚀</span>
+          <div>
+            <h3 class="text-md sm:text-lg font-black text-emerald-400">เกมบล็อกลอยฟ้าอวกาศแสนสนุก! 🎈</h3>
+            <p id="floating-question-text" class="text-sm sm:text-base text-yellow-300 font-bold mt-0.5">คำถาม: กำลังสุ่มคำถามแสนง่าย...</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span id="floating-q-badge" class="px-3 py-1 bg-indigo-800 text-xs rounded-full font-bold">ข้อที่ 1/10</span>
+          <span id="floating-feedback-text" class="text-xs text-white/80">เล็งหาบล็อกคำสั่งสีที่ตรงกันเลย!</span>
+          <button id="btn-exit-floating" class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition">
+            <i class="fa-solid fa-circle-xmark"></i> กลับหน้าแรก
+          </button>
+        </div>
+      </div>
+
+      <!-- HUGE Space field for spawning blocks -->
+      <div id="floating-container-viewport" class="relative w-full h-[380px] md:h-[450px] overflow-hidden bg-black/30 rounded-2xl my-4 border-2 border-dashed border-indigo-400 shadow-inner">
+        <!-- Floating candidate blocks with bigger scale spawn here -->
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+          <i class="fa-solid fa-space-shuttle text-9xl text-white"></i>
+        </div>
+      </div>
+
+      <!-- Footer instructions inside the game -->
+      <div class="text-center text-white/55 text-xs font-bold bg-white/5 py-2 rounded-xl border border-white/5">
+        💡 บล็อกลอยขึ้นมาช้าๆ อย่างปลอดภัยแล้วนะจ๊ะ! ให้เด็กๆ คลิกเมาส์ หรือใช้มือจีบ AR เพื่อกดบล็อกที่เป็นคำตอบที่ถูกต้องได้เลย!
+      </div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM FOOTER -->
+  <footer class="relative z-20 w-full max-w-7xl mx-auto px-4 mt-6 text-center text-xs text-pink-500 font-bold">
+    <div class="bg-white/80 backdrop-blur-sm py-3 px-6 rounded-2xl shadow border-2 border-pink-100 inline-block">
+      <p>🐱 พัฒนาเพื่อการศึกษาโดยกลุ่มนวัตกรรมสื่อเรียนรู้ "ห้องเรียนครูพุทธา" 🎨 สนับสนุนการเรียนรู้แบบ Active Learning & AR</p>
+    </div>
+  </footer>
+
+  <!-- TOOLTIP POPUP (Learn Mode) -->
+  <div id="custom-tooltip" class="fixed bg-slate-800 text-white p-3 rounded-2xl shadow-2xl text-xs z-50 pointer-events-none max-w-xs transition-opacity duration-200 opacity-0 border-2 border-pink-300">
+    <h3 id="tooltip-title" class="font-extrabold text-pink-300 text-sm mb-1">ชื่อเครื่องมือ</h3>
+    <p id="tooltip-desc" class="text-gray-200 mb-2">คำอธิบายการทำงาน</p>
+    <div class="bg-slate-700 p-1.5 rounded-lg border border-slate-600">
+      <span class="block font-bold text-yellow-300 text-[10px]">💡 ตัวอย่างการใช้งาน:</span>
+      <p id="tooltip-example" class="italic text-gray-300 text-[10px]"></p>
+    </div>
+  </div>
+
+  <!-- MODAL: BIG BLOCK DETAIL -->
+  <div id="block-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl border-4 border-pink-200 max-w-md w-full p-6 shadow-2xl relative transform scale-95 transition-transform duration-300">
+      <button id="btn-close-modal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <div class="text-center mb-4">
+        <div id="modal-icon-bg" class="w-16 h-16 mx-auto rounded-full bg-blue-100 flex items-center justify-center text-3xl mb-2 text-blue-500 shadow-inner">
+          <i id="modal-icon" class="fa-solid fa-arrows-to-eye"></i>
+        </div>
+        <h3 id="modal-title" class="text-lg font-extrabold text-gray-800">ชื่อหมวดหมู่บล็อก</h3>
+        <p id="modal-category" class="text-xs font-bold text-indigo-500 uppercase tracking-widest"></p>
+      </div>
+      <div class="space-y-4">
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+          <p class="text-xs font-bold text-gray-400 mb-1">🔍 อธิบายบล็อกคำสั่ง:</p>
+          <p id="modal-desc" class="text-sm text-gray-700 leading-relaxed font-semibold">อธิบายอย่างละเอียดที่นี่...</p>
+        </div>
+        <div class="bg-pink-50 p-4 rounded-2xl border border-pink-100">
+          <p class="text-xs font-bold text-pink-500 mb-1">✨ ประโยชน์และทักษะที่ได้รับ:</p>
+          <p id="modal-benefit" class="text-sm text-gray-700 leading-relaxed font-semibold">สร้างเงื่อนไข คำนวณ หรือการควบคุมแสนสนุก...</p>
+        </div>
+      </div>
+      <div class="mt-6">
+        <button id="btn-modal-ok" class="w-full py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow border-b-4 border-pink-700 transition">
+          เข้าใจแล้วจ้า! 👍
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CERTIFICATE -->
+  <div id="certificate-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-1 shadow-2xl max-w-4xl w-full relative">
+      
+      <!-- Input State (Before generating final printable version) -->
+      <div id="cert-input-area" class="p-6 text-center no-print">
+        <div class="w-16 h-16 bg-yellow-100 text-yellow-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-3 animate-bounce">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <h2 class="text-2xl font-black text-gray-800">ยินดีด้วยจ้า! คนเก่งของครูพุทธา 🎉</h2>
+        <p class="text-sm text-gray-500 mt-1 mb-4">หนูตอบคำถามเรื่องบล็อก Scratch ถูกต้องครบ 10 ข้อ ได้คะแนน 100 เต็มแล้ว!</p>
+        
+        <div class="max-w-md mx-auto bg-pink-50 p-6 rounded-2xl border-2 border-pink-200">
+          <label class="block text-sm font-bold text-pink-600 mb-2">ระบุชื่อ-นามสกุลจริง เพื่อรับใบประกาศนียบัตร</label>
+          <input type="text" id="student-name-input" placeholder="เด็กหญิง/เด็กชาย สุดเก่ง ตั้งใจเรียน" class="w-full px-4 py-3 rounded-xl text-center font-bold text-gray-800 border-2 border-pink-300 focus:outline-none focus:border-pink-500 shadow-md">
+          <button id="btn-generate-cert" class="w-full mt-4 py-3 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold rounded-xl shadow-lg transition border-b-4 border-teal-700">
+            🥇 ยืนยันข้อมูลและสร้างใบรับรอง
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Certificate Content -->
+      <div id="cert-printable-area" class="hidden-force p-6 md:p-10 relative overflow-hidden">
+        <div id="certificate-modal-content" class="border-8 border-double border-yellow-400 bg-amber-50 p-6 md:p-12 text-center rounded-2xl relative shadow-inner">
+          
+          <!-- Cute decorative elements -->
+          <div class="absolute top-4 left-4 text-3xl opacity-30 select-none">🐱🎈🎨</div>
+          <div class="absolute top-4 right-4 text-3xl opacity-30 select-none">⭐🤖🌈</div>
+          <div class="absolute bottom-4 left-4 text-3xl opacity-30 select-none">💡🚀🎮</div>
+          <div class="absolute bottom-4 right-4 text-3xl opacity-30 select-none">🏆📐💻</div>
+
+          <div class="flex flex-col items-center">
+            <!-- School Emblem Placeholder -->
+            <div class="w-20 h-20 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white text-3xl shadow-lg border-4 border-white mb-4">
+              <i class="fa-solid fa-graduation-cap"></i>
+            </div>
+            
+            <h1 class="text-3xl md:text-4xl font-extrabold text-pink-600 tracking-wider">ใบประกาศนียบัตรคนเก่ง</h1>
+            <p class="text-xs md:text-sm font-bold uppercase text-gray-400 tracking-widest mt-1">ห้องเรียนครูพุทธา - Active Learning & Technology</p>
+            
+            <div class="w-1/3 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent my-4"></div>
+            
+            <p class="text-md text-gray-600">ขอมอบใบประกาศเกียรทีคุณฉบับนี้เพื่อแสดงว่า</p>
+            
+            <h2 id="certified-student-name" class="text-2xl md:text-4xl font-black text-slate-800 my-6 border-b-2 border-dashed border-slate-300 pb-2 px-10 inline-block font-sans">
+              เด็กดี รักเรียนรู้
+            </h2>
+            
+            <p class="text-sm md:text-md text-gray-600 max-w-xl leading-relaxed mx-auto">
+              ได้ผ่านการทดสอบทักษะพื้นฐานและทำคะแนนได้ <span class="font-bold text-emerald-500">100/100 (เต็ม!)</span> ในเกมจับคู่สรุปกลุ่มบล็อกคำสั่งของโปรแกรม <span class="font-bold text-indigo-600">Scratch</span> พร้อมทั้งเข้าใจหน้าที่และการเขียนโค้ดอย่างยอดเยี่ยม
+            </p>
+
+            <div class="grid grid-cols-2 gap-12 mt-10 w-full max-w-lg">
+              <div class="text-center">
+                <div class="h-px bg-slate-400 w-full mb-2"></div>
+                <p class="text-xs text-gray-500 font-bold">ครูพุทธา (ครูผู้จัดการเรียนรู้)</p>
+                <p class="text-[10px] text-gray-400">ผู้พัฒนาสื่อนวัตกรรมสร้างสรรค์</p>
+              </div>
+              <div class="text-center">
+                <div class="h-px bg-slate-400 w-full mb-2"></div>
+                <p class="text-xs text-gray-500 font-bold">วันเดือนปีที่ผ่านการทดสอบ</p>
+                <p id="certified-date" class="text-[10px] text-gray-400">27 มิถุนายน 2569</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons (Hidden when printing) -->
+        <div class="mt-6 flex justify-end gap-3 no-print">
+          <button id="btn-print" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center gap-2">
+            <i class="fa-solid fa-print"></i> 🖨️ พิมพ์ส่งครู (A4)
+          </button>
+          <button id="btn-close-cert" class="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl shadow-md transition">
+            ปิดหน้านี้
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- AUDIO CONTEXT ERROR DIALOG -->
+  <div id="audio-alert" class="fixed bottom-4 left-4 z-50 bg-white/95 backdrop-blur-md p-4 rounded-2xl shadow-2xl max-w-xs border-2 border-yellow-300 flex items-center gap-3 transition-transform translate-y-24 hidden">
+    <div class="text-2xl text-yellow-500"><i class="fa-solid fa-circle-info"></i></div>
+    <div>
+      <p class="text-xs font-bold text-gray-800">โปรดคลิกที่ใดก็ได้เพื่ออนุญาตระบบเสียงเอฟเฟกต์แสนสนุกจ้า 🎵</p>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================
+       1. DATA DEFINITIONS (Scratch Block DB)
+       ========================================== */
+    const SCRATCH_CATEGORIES = [
+      { id: 'motion', name: 'การเคลื่อนที่ (Motion)', color: '#4C97FF', icon: 'fa-arrows-to-eye', textColor: 'white' },
+      { id: 'looks', name: 'รูปลักษณ์ (Looks)', color: '#9966FF', icon: 'fa-wand-magic-sparkles', textColor: 'white' },
+      { id: 'sound', name: 'เสียง (Sound)', color: '#CF63CF', icon: 'fa-volume-high', textColor: 'white' },
+      { id: 'events', name: 'เหตุการณ์ (Events)', color: '#FFBF00', icon: 'fa-bolt', textColor: 'gray-800' },
+      { id: 'control', name: 'ควบคุม (Control)', color: '#FFAB19', icon: 'fa-arrows-spin', textColor: 'white' },
+      { id: 'sensing', name: 'การตรวจจับ (Sensing)', color: '#4CBFE6', icon: 'fa-compass', textColor: 'white' },
+      { id: 'operators', name: 'ตัวดำเนินการ (Operators)', color: '#40BF4A', icon: 'fa-calculator', textColor: 'white' },
+      { id: 'variables', name: 'ตัวแปร (Variables)', color: '#FF8C1A', icon: 'fa-tag', textColor: 'white' }
+    ];
+
+    const SCRATCH_BLOCKS = [
+      // Motion
+      { id: 'move_10', category: 'motion', blockText: 'เคลื่อนที่ <span class="scratch-input-num">10</span> ก้าว 🏃‍♂️', tooltipName: 'move ( ) steps', tooltipDesc: 'ใช้สำหรับเลื่อนตำแหน่งตัวละครไปด้านหน้าตามทิศทางปัจจุบัน', tooltipExample: 'move 10 steps (เดินไปข้างหน้า 10 หน่วย)', benefit: 'ช่วยขยับสไปรท์แมวให้เคลื่อนไหว ท่องอวกาศ หรือสร้างเกมวิ่งหลบสิ่งกีดขวาง!' },
+      { id: 'turn_right_15', category: 'motion', blockText: 'หันขวา ↻ <span class="scratch-input-num">15</span> องศา 🔄', tooltipName: 'turn right ( ) degrees', tooltipDesc: 'หมุนตัวละครไปตามทิศทางตามเข็มนาฬิกา', tooltipExample: 'turn right 15 degrees (ทำให้หมุนขวาขึ้น)', benefit: 'หมุนตัวละครเพื่อควบคุมการหันเหทิศทาง ทำให้นักสู้แมวหันหน้าไปทิศทางใหม่!' },
+      { id: 'turn_left_15', category: 'motion', blockText: 'หันซ้าย ↺ <span class="scratch-input-num">15</span> องศา 🔄', tooltipName: 'turn left ( ) degrees', tooltipDesc: 'หมุนตัวละครทวนเข็มนาฬิกา', tooltipExample: 'turn left 15 degrees (หันซ้ายแกว่งไปมา)', benefit: 'ใช้สร้างการเลี้ยวหรือเอียงปีกซ้าย/ขวาสำหรับจำลองยานอวกาศ!' },
+      { id: 'goto_random', category: 'motion', blockText: 'ไปที่ <span class="scratch-dropdown">ตำแหน่งสุ่ม <i class="fa-solid fa-caret-down text-[8px]"></i></span> 🎲', tooltipName: 'go to [random position]', tooltipDesc: 'วาร์ปย้ายสไปรท์ไปยังพิกัดพิกเซลแบบสุ่มบนจอเวทีทันที', tooltipExample: 'สุ่มย้ายหนูหนีแมว', benefit: 'ใช้กระจายศัตรู หรือดาวตกที่ตกลงมาสุ่มบนท้องฟ้าในเกมสุดตื่นเต้น!' },
+
+      // Looks
+      { id: 'say_hello_2', category: 'looks', blockText: 'พูด <span class="scratch-input-text">Hello!</span> เป็นเวลา <span class="scratch-input-num">2</span> วินาที 💬', tooltipName: 'say [ ] for ( ) seconds', tooltipDesc: 'แสดงฟองคำพูดข้อความค้างไว้ตามเวลาที่กำหนด', tooltipExample: 'say Hello! for 2 seconds (สวัสดีเด็กๆ)', benefit: 'ใช้พรีเซนต์เรื่องราว บทสนทนาบทบาทสมมติ และให้สไปรท์ตอบคำถามผู้ใช้!' },
+      { id: 'say_hello', category: 'looks', blockText: 'พูด <span class="scratch-input-text">Hello!</span> 💬', tooltipName: 'say [ ]', tooltipDesc: 'แสดงฟองคำพูดค้างไว้ตลอดไปจนกว่าจะมีคำสั่งอื่นซ้อน', tooltipExample: 'พูดทักทายตอนเจอศัตรู', benefit: 'แจ้งสถานะตัวละครอย่างยั่งยืน หรือบอกคำตอบที่ถูกต้องคาไว้บนจอ!' },
+      { id: 'next_costume', category: 'looks', blockText: 'ชุดถัดไป (Next Costume) 👗', tooltipName: 'next costume', tooltipDesc: 'สลับภาพของสไปรท์ไปยังเฟรมถัดไปในคลัง', tooltipExample: 'ใช้จำลองการเดินก้าวขาของน้องแมว', benefit: 'สำคัญมากในการทำการ์ตูนแอนิเมชันให้ขยับปีกบิน หรือเดินเสมือนจริง!' },
+      { id: 'change_size_10', category: 'looks', blockText: 'เปลี่ยนขนาดทีละ <span class="scratch-input-num">10</span> ➕', tooltipName: 'change size by ( )', tooltipDesc: 'เพิ่มหรือลดขนาดสเกลสไปรท์เป็นเปอร์เซ็นต์สะสม', tooltipExample: 'ขยายขนาดเมื่อกินเห็ดโต', benefit: 'สร้างเอฟเฟกต์ตัวละครยักษ์ใหญ่ หรือหดตัวเล็กจิ๋วเมื่อโดนอุปสรรค!' },
+
+      // Sound
+      { id: 'play_meow', category: 'sound', blockText: 'เล่นเสียง <span class="scratch-dropdown">Meow <i class="fa-solid fa-caret-down text-[8px]"></i></span> จนจบ 🐱🎵', tooltipName: 'play sound [ ] until done', tooltipDesc: 'ส่งเสียงที่ระบุจนกว่าคลื่นเสียงจะจบคลิป', tooltipExample: 'เล่นเสียงแมวร้องประกอบเกม', benefit: 'สร้างอรรถรสความมีชีวิตชีวา ดึงความสนใจของน้องๆ สไปรท์มีเสียงร้องได้!' },
+      { id: 'play_pop', category: 'sound', blockText: 'เล่นเสียง <span class="scratch-dropdown">Pop <i class="fa-solid fa-caret-down text-[8px]"></i></span> ✨', tooltipName: 'play sound [Pop]', tooltipDesc: 'ส่งเสียงป๊อปสั้นๆ เหมาะกับการตอบโต้', tooltipExample: 'เล่นเสียงป๊อปประกอบการกดปุ่ม', benefit: 'ใช้สร้างเสียงโต้ตอบน่ารักและเป็นธรรมชาติแบบง่ายๆ!' },
+
+      // Events
+      { id: 'when_green_flag', category: 'events', style: 'hat', blockText: 'เมื่อคลิก 🚩 (ธงเขียว)', tooltipName: 'when green flag clicked', tooltipDesc: 'บล็อกหัวเรื่องหลัก ใช้เริ่มต้นรันสคริปต์ต่างๆ ในโปรแกรม', tooltipExample: 'จุดสตาร์ทเกมทั้งหมด', benefit: 'เป็นหัวใจหลักประดุจปุ่ม "เปิดเครื่อง" สำหรับโค้ดดิ้งทุกอย่างในระบบ!' },
+      { id: 'when_this_clicked', category: 'events', style: 'hat', blockText: 'เมื่อตัวละครนี้ถูกคลิก 👆', tooltipName: 'when this sprite clicked', tooltipDesc: 'ตรวจจับเมื่อนิ้ว/เมาส์คลิกโดนพิกเซลสไปรท์เพื่อเริ่มรันงาน', tooltipExample: 'คลิกเพื่อยิงลูกโป่งแตก', benefit: 'สร้าง UI ปุ่มกดแบบง่ายๆ หรือเกมสไตล์จิ้มลูก balloon คล้ายแอปจริง!' },
+
+      // Control
+      { id: 'wait_1', category: 'control', blockText: 'รอ <span class="scratch-input-num">1</span> วินาที ⏳', tooltipName: 'wait ( ) seconds', tooltipDesc: 'หน่วงเวลาคั่นสคริปต์ก่อนรันบล็อกถัดไปเบื้องล่าง', tooltipExample: 'หยุด 1 วินาทีก่อนนับถอยหลังต่อไป', benefit: 'จัดระเบียบเวลาแอนิเมชันไม่ให้เกิดเร็วไป หรือเว้นจังหวะกระพริบตา!' },
+      { id: 'repeat_10', category: 'control', style: 'c', blockText: 'ทำซ้ำ <span class="scratch-input-num">10</span> ครั้ง 🔁', tooltipName: 'repeat ( )', tooltipDesc: 'ลูปเซ็ตคำสั่งด้านในตามจำนวนรอบที่ระบุ', tooltipExample: 'กระโดดซ้ำ 10 ครั้ง', benefit: 'ลดโค้ดอันรุงรัง ช่วยให้น้องๆ ทำเรื่องเดิมๆ ซ้ำแบบเป็นระบบและกระชับ!' },
+      { id: 'forever_loop', category: 'control', style: 'c', blockText: 'ทำซ้ำตลอดไป ♾️', tooltipName: 'forever', tooltipDesc: 'ลูปคำสั่งซ้ำๆ แบบไม่สิ้นสุดจนกว่าจะกดหยุดเกม', tooltipExample: 'ตรวจจับการชนหรือแรงโน้มถ่วงตลอดเวลา', benefit: 'แกนกลางของ Game Loop เพื่อตรวจสอบตำแหน่งและวาดภาพอัพเดตแบบไดนามิก!' },
+
+      // Sensing
+      { id: 'touching_mouse', category: 'sensing', blockText: 'แตะ <span class="scratch-dropdown">ตัวชี้เมาส์ <i class="fa-solid fa-caret-down text-[8px]"></i></span> ? 🖱️', tooltipName: 'touching [mouse-pointer] ?', tooltipDesc: 'ตรวจสอบว่าร่างกายสไปรท์ชนทับพิกัดเมาส์หรือไม่ คืนค่าเป็นจริง/เท็จ', tooltipExample: 'ใช้ลากของเล่นตามเมาส์', benefit: 'สร้างกลไก Hover ปฏิกิริยาอินเตอร์แอคทีฟ หรือระบุตำแหน่งเมาส์ในเกม!' },
+      { id: 'ask_name', category: 'sensing', blockText: 'ถาม <span class="scratch-input-text">คุณชื่ออะไร?</span> และรอ 💬', tooltipName: 'ask [ ] and wait', tooltipDesc: 'เปิดกล่องป้อนข้อมูลให้ผู้ใช้พิมพ์แป้นพิมพ์ แล้วบันทึกค่าไว้', tooltipExample: 'ถามคำถามคณิตศาสตร์', benefit: 'เก็บชื่อมาสร้างความรู้สึกร่วม ตอบคำถามเพื่อประมวลผลเป็นโปรแกรมสนทนา!' },
+
+      // Operators
+      { id: 'pick_random_1_10', category: 'operators', blockText: 'สุ่มระหว่าง <span class="scratch-input-num">1</span> ถึง <span class="scratch-input-num">10</span> 🎲', tooltipName: 'pick random ( ) to ( )', tooltipDesc: 'คืนค่าจำนวนเต็มสุ่มขึ้นมาแบบไม่มีรูปแบบที่ตายตัว', tooltipExample: 'สุ่มตอบคำถามหรือผลสลาก', benefit: 'สร้างความลุ้นตื่นเต้น คาดเดาไม่ได้ เช่น สุ่มจุดเกิดมอนสเตอร์ หรือความแรงในการยิง!' },
+      { id: 'join_hello_world', category: 'operators', blockText: 'ต่อ <span class="scratch-input-text">apple</span> <span class="scratch-input-text">banana</span> 🔗', tooltipName: 'join [ ] [ ]', tooltipDesc: 'เชื่อมสายอักขระข้อความสองก้อนเข้าด้วยกันเป็นประโยคเดียว', tooltipExample: 'ต่อชื่อผู้ใช้งาน: "สวัสดี " + ชื่อ', benefit: 'ใช้แสดงผลข้อความไดนามิก เช่น การนำคำทักทายรวมร่างกับคะแนนผู้เล่น!' },
+
+      // Variables
+      { id: 'set_var', category: 'variables', blockText: 'ตั้งค่า <span class="scratch-dropdown">my variable <i class="fa-solid fa-caret-down text-[8px]"></i></span> เป็น <span class="scratch-input-num">0</span> ⚙️', tooltipName: 'set [my variable] to ( )', tooltipDesc: 'เซ็ตกล่องตัวแปรให้เป็นค่าเริ่มต้นตามที่กำหนด', tooltipExample: 'เซ็ตชีวิตตัวละครเป็น 3 ตอนเริ่มด่านใหม่', benefit: 'ใช้รีเซ็ตคะแนนเกณฑ์ เวลา หรือหัวใจให้คงที่ทุกครั้งเมื่อกดเริ่มสตาร์ท!' },
+      { id: 'change_var_1', category: 'variables', blockText: 'เปลี่ยน <span class="scratch-dropdown">my variable <i class="fa-solid fa-caret-down text-[8px]"></i></span> ทีละ <span class="scratch-input-num">1</span> 📈', tooltipName: 'change [my variable] by ( )', tooltipDesc: 'บวกค่าสะสมเข้าไปในตัวแปรเดิม (สามารถใช้ติดลบเพื่อลดค่าได้)', tooltipExample: 'เพิ่มคะแนนทีละ 1 แต้มเมื่อรับหัวใจ', benefit: 'บันทึกแต้มความสำเร็จ เก็บเลเวล หรือนับรอบของเกมอย่างต่อเนื่อง!' }
+    ];
+
+    // Simplified, Kid-Friendly questions (Exact 21 items with Color Hints for kids)
+    const FLOATING_GAME_QUESTIONS = [
+      { question: "🏃‍♂️ สั่งให้สไปรท์แมว 'ก้าวเดินหน้า' (คำใบ้: บล็อกสีฟ้า 🔵)", correctId: "move_10" },
+      { question: "🔄 สั่งหมุนตัวแมว 'หันหัวไปทางขวา' (คำใบ้: บล็อกสีฟ้า 🔵)", correctId: "turn_right_15" },
+      { question: "🔄 สั่งหมุนตัวแมว 'หันหัวไปทางซ้าย' (คำใบ้: บล็อกสีฟ้า 🔵)", correctId: "turn_left_15" },
+      { question: "🎲 สั่งสไปรท์แมว 'วาร์ปสุ่มไปโผล่บนจอ' (คำใบ้: บล็อกสีฟ้า 🔵)", correctId: "goto_random" },
+      { question: "💬 สั่งให้ตัวละครแมว 'พูดสวัสดีค้างไว้ 2 วินาที' (คำใบ้: บล็อกสีม่วง 🟣)", correctId: "say_hello_2" },
+      { question: "💬 สั่งให้ตัวละครแมว 'พูดคำทักทายค้างไว้ตลอดไป' (คำใบ้: บล็อกสีม่วง 🟣)", correctId: "say_hello" },
+      { question: "👗 สั่งให้แมว 'เปลี่ยนเป็นรูปท่าทางถัดไป' (คำใบ้: บล็อกสีม่วง 🟣)", correctId: "next_costume" },
+      { question: "➕ สั่งให้สไปรท์ 'ขยายขนาดใหญ่ขึ้น' (คำใบ้: บล็อกสีม่วง 🟣)", correctId: "change_size_10" },
+      { question: "🎵 สั่งให้โปรแกรม 'เล่นเสียงร้อง Meow ของแมว' (คำใบ้: บล็อกสีชมพู 💗)", correctId: "play_meow" },
+      { question: "✨ สั่งให้โปรแกรม 'ส่งเสียงเอฟเฟกต์ Pop สั้นๆ' (คำใบ้: บล็อกสีชมพู 💗)", correctId: "play_pop" },
+      { question: "🚩 บล็อกเริ่มโค้ดที่รันเมื่อเรา 'กดคลิกธงเขียว' (คำใบ้: บล็อกสีเหลืองส้ม 🟡)", correctId: "when_green_flag" },
+      { question: "👆 บล็อกเหตุการณ์ทำงานเมื่อเรา 'ใช้เมาส์คลิกที่ตัวแมว' (คำใบ้: บล็อกสีเหลืองส้ม 🟡)", correctId: "when_this_clicked" },
+      { question: "⏳ สั่งหน่วงเวลาให้โปรแกรม 'หยุดรอคอย 1 วินาที' (คำใบ้: บล็อกสีส้มเข้ม 🟠)", correctId: "wait_1" },
+      { question: "🔁 สั่งให้สคริปต์ข้างใน 'ทำงานซ้ำครบ 10 รอบ' (คำใบ้: บล็อกสีส้มเข้ม 🟠)", correctId: "repeat_10" },
+      { question: "♾️ สั่งให้ลูปทำงาน 'ซ้ำๆ กันไปตลอดไปไม่มีหยุด' (คำใบ้: บล็อกสีส้มเข้ม 🟠)", correctId: "forever_loop" },
+      { question: "🖱️ ตรวจสอบว่า 'ร่างกายของสไปรท์แมวแตะโดนตัวชี้เมาส์' (คำใบ้: บล็อกสีฟ้าอ่อน 🌐)", correctId: "touching_mouse" },
+      { question: "💬 บล็อกขึ้นหน้าต่างป้อนคำถามพิมพ์ชื่อ 'และจอดรอคำตอบ' (คำใบ้: บล็อกสีฟ้าอ่อน 🌐)", correctId: "ask_name" },
+      { question: "🎲 ใช้คำนวณและ 'สุ่มตัวเลข 1 ถึง 10' เพื่อเสี่ยงโชค (คำใบ้: บล็อกสีเขียว 🟢)", correctId: "pick_random_1_10" },
+      { question: "🔗 บล็อกใช้ 'นำเอาข้อความสองคำมาเชื่อมต่อกัน' (คำใบ้: บล็อกสีเขียว 🟢)", correctId: "join_hello_world" },
+      { question: "⚙️ บล็อกรีเซ็ตคะแนน 'ตั้งค่าตัวแปรเริ่มต้นใหม่เป็น 0' (คำใบ้: บล็อกสีส้มแสด 🍊)", correctId: "set_var" },
+      { question: "📈 บล็อก 'บวกเพิ่มคะแนนตัวแปรสะสมทีละ 1' (คำใบ้: บล็อกสีส้มแสด 🍊)", correctId: "change_var_1" }
+    ];
+
+    /* ==========================================
+       2. WEB AUDIO API SYNTHESIZER
+       ========================================== */
+    let audioCtx = null;
+
+    function initAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        document.getElementById('audio-alert').classList.add('translate-y-24');
+      }
+    }
+
+    document.addEventListener('click', () => {
+      initAudioContext();
+    });
+
+    function playSound(type) {
+      if (!audioCtx) {
+        const alertBox = document.getElementById('audio-alert');
+        alertBox.classList.remove('translate-y-24');
+        setTimeout(() => alertBox.classList.add('translate-y-24'), 6000);
+        return;
+      }
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'pop') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(1200, now + 0.08);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+          osc.start(now);
+          osc.stop(now + 0.08);
+        } else if (type === 'correct') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, now); // C5
+          osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+          osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.setValueAtTime(0.3, now + 0.1);
+          gain.gain.setValueAtTime(0.3, now + 0.2);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+          osc.start(now);
+          osc.stop(now + 0.4);
+        } else if (type === 'wrong') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.linearRampToValueAtTime(90, now + 0.35);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (type === 'magic') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.linearRampToValueAtTime(1500, now + 0.2);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        } else if (type === 'levelup') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(261.63, now); // C4
+          osc.frequency.setValueAtTime(329.63, now + 0.12); // E4
+          osc.frequency.setValueAtTime(392.00, now + 0.24); // G4
+          osc.frequency.setValueAtTime(523.25, now + 0.36); // C5
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+          osc.start(now);
+          osc.stop(now + 0.7);
+        }
+      } catch (err) {
+        console.warn("Audio Context Play failed gracefully:", err);
+      }
+    }
+
+    /* ==========================================
+       3. BACKGROUND DECORATION ENGINE
+       ========================================== */
+    function createBackgroundClouds() {
+      const container = document.getElementById('sky-background');
+      const numClouds = 6;
+      for (let i = 0; i < numClouds; i++) {
+        const cloud = document.createElement('div');
+        cloud.className = 'cloud-bg';
+        
+        const w = Math.floor(Math.random() * 80) + 100;
+        const h = w * 0.4;
+        cloud.style.width = `${w}px`;
+        cloud.style.height = `${h}px`;
+        
+        cloud.style.setProperty('--pseudo-size', `${w * 0.5}px`);
+        cloud.style.top = `${Math.random() * 70}vh`;
+        cloud.style.left = `-${w}px`;
+        cloud.style.animation = `floatCloud ${Math.random() * 30 + 35}s linear infinite`;
+        cloud.style.animationDelay = `${Math.random() * -30}s`;
+
+        container.appendChild(cloud);
+      }
+    }
+
+    /* ==========================================
+       4. GAME / APPLICATION STATE MANAGEMENT
+       ========================================== */
+    let currentMode = 'learn'; // 'learn', 'game', 'floating-game'
+    let currentCategory = 'motion';
+    let gameScore = 0;
+    let gameQuestions = [];
+    let currentQuestionIndex = 0;
+    const TOTAL_QUESTIONS = 10;
+    
+    // Stage parameters
+    let catX = 0;
+    let catY = 0;
+    let catDir = 90;
+    let catSize = 100;
+
+    // Placed blocks list in the Workspace
+    let workspaceBlocks = [];
+
+    // Floating Game specific states
+    let activeFloatingBlocks = [];
+    let floatingGameTimer = null;
+    let floatingAnimationId = null;
+
+    /* ==========================================
+       5. SYSTEM EVENT HANDLERS & DOM SETUP
+       ========================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      createBackgroundClouds();
+      renderCategories();
+      selectCategory('motion');
+      initWorkspace();
+      setupEventListeners();
+      initFireworks();
+    });
+
+    function setupEventListeners() {
+      // Toggle mode buttons
+      document.getElementById('btn-learn-mode').addEventListener('click', () => {
+        setAppMode('learn');
+      });
+      document.getElementById('btn-game-mode').addEventListener('click', () => {
+        setAppMode('game');
+      });
+      document.getElementById('btn-floating-game-mode').addEventListener('click', () => {
+        setAppMode('floating-game');
+      });
+
+      // Exit button inside the floating game
+      document.getElementById('btn-exit-floating').addEventListener('click', () => {
+        setAppMode('learn');
+      });
+
+      // AR Mode toggle
+      document.getElementById('btn-toggle-ar').addEventListener('click', toggleARCamera);
+
+      // Workspace Play/Stop stage buttons
+      document.getElementById('btn-stage-play').addEventListener('click', executeWorkspace);
+      document.getElementById('btn-stage-stop').addEventListener('click', resetStage);
+
+      // Modals handles
+      document.getElementById('btn-close-modal').addEventListener('click', () => {
+        document.getElementById('block-modal').classList.add('hidden');
+      });
+      document.getElementById('btn-modal-ok').addEventListener('click', () => {
+        document.getElementById('block-modal').classList.add('hidden');
+      });
+
+      // Certificate Modals handles
+      document.getElementById('btn-generate-cert').addEventListener('click', processCertificateName);
+      document.getElementById('btn-print').addEventListener('click', () => {
+        playSound('magic');
+        window.print();
+      });
+      document.getElementById('btn-close-cert').addEventListener('click', () => {
+        document.getElementById('certificate-modal').classList.add('hidden');
+      });
+    }
+
+    /* ==========================================
+       6. UI RENDERING ENGINES
+       ========================================== */
+    function renderCategories() {
+      const listEl = document.getElementById('category-list');
+      listEl.innerHTML = '';
+
+      SCRATCH_CATEGORIES.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = `w-full text-left px-4 py-3 rounded-2xl font-bold flex items-center justify-between transition-all duration-150 shadow border-b-4 hover:brightness-105 active:scale-95`;
+        btn.style.backgroundColor = cat.color;
+        btn.style.color = cat.textColor;
+        btn.style.borderColor = `rgba(0,0,0,0.15)`;
+        btn.dataset.categoryId = cat.id;
+
+        btn.innerHTML = `
+          <span class="flex items-center gap-2">
+            <i class="fa-solid ${cat.icon}"></i>
+            <span>${cat.name}</span>
+          </span>
+          <i class="fa-solid fa-chevron-right text-xs opacity-70"></i>
+        `;
+
+        btn.addEventListener('click', () => {
+          playSound('pop');
+          selectCategory(cat.id);
+        });
+
+        listEl.appendChild(btn);
+      });
+    }
+
+    function selectCategory(catId) {
+      currentCategory = catId;
+      
+      const buttons = document.querySelectorAll('#category-list button');
+      buttons.forEach(btn => {
+        if (btn.dataset.categoryId === catId) {
+          btn.classList.add('scale-105', 'ring-4', 'ring-indigo-300');
+        } else {
+          btn.classList.remove('scale-105', 'ring-4', 'ring-indigo-300');
+        }
+      });
+
+      const catObj = SCRATCH_CATEGORIES.find(c => c.id === catId);
+      const nameEl = document.getElementById('selected-category-name');
+      nameEl.innerText = catObj.name;
+      nameEl.style.backgroundColor = catObj.color;
+      nameEl.style.color = catObj.textColor;
+
+      const blocksEl = document.getElementById('blocks-container');
+      blocksEl.innerHTML = '';
+
+      const filteredBlocks = SCRATCH_BLOCKS.filter(b => b.category === catId);
+      filteredBlocks.forEach(block => {
+        const blockDiv = document.createElement('div');
+        
+        // Dynamic styling based on block shape (Hat blocks, C-blocks, or standard blocks)
+        let shapeClass = "scratch-block";
+        if (block.style === 'hat') {
+          shapeClass += " scratch-block-hat";
+        } else if (block.style === 'c') {
+          shapeClass += " scratch-block-c";
+        }
+        
+        blockDiv.className = `${shapeClass} select-none shadow text-[11px] font-bold text-white transition-all duration-200`;
+        blockDiv.style.backgroundColor = catObj.color;
+        blockDiv.dataset.blockId = block.id;
+
+        blockDiv.innerHTML = `
+          <span class="flex items-center gap-1.5 flex-wrap">
+            <i class="fa-solid fa-puzzle-piece text-[9px] opacity-80"></i>
+            <span>${block.blockText}</span>
+          </span>
+          <button class="btn-info-circle hover:text-yellow-200 transition p-1 ml-auto text-[11px]" title="ดูข้อมูล">
+            <i class="fa-solid fa-circle-info"></i>
+          </button>
+        `;
+
+        blockDiv.querySelector('.btn-info-circle').addEventListener('click', (e) => {
+          e.stopPropagation();
+          showBlockDetailModal(block);
+        });
+
+        blockDiv.addEventListener('mouseenter', (e) => {
+          if (currentMode === 'learn') {
+            showTooltip(e, block);
+          }
+        });
+        blockDiv.addEventListener('mouseleave', () => {
+          hideTooltip();
+        });
+
+        blockDiv.addEventListener('dblclick', () => {
+          addBlockToWorkspace(block);
+        });
+
+        blockDiv.addEventListener('click', () => {
+          if (currentMode === 'game') {
+            validateGameAnswer(block.id);
+          } else if (currentMode === 'learn') {
+            executeSingleBlockAction(block.id);
+          }
+        });
+
+        blocksEl.appendChild(blockDiv);
+      });
+    }
+
+    /* ==========================================
+       7. TOOLTIPS ENGINE
+       ========================================== */
+    const tooltipEl = document.getElementById('custom-tooltip');
+    const tTitle = document.getElementById('tooltip-title');
+    const tDesc = document.getElementById('tooltip-desc');
+    const tEx = document.getElementById('tooltip-example');
+
+    function showTooltip(event, block) {
+      tTitle.innerText = block.tooltipName;
+      tDesc.innerText = block.tooltipDesc;
+      tEx.innerText = block.tooltipExample;
+
+      tooltipEl.style.left = `${event.clientX + 15}px`;
+      tooltipEl.style.top = `${event.clientY + 15}px`;
+      tooltipEl.classList.remove('opacity-0');
+      tooltipEl.style.opacity = '0.95';
+    }
+
+    function hideTooltip() {
+      tooltipEl.classList.add('opacity-0');
+      tooltipEl.style.opacity = '0';
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (tooltipEl.style.opacity === '0.95') {
+        tooltipEl.style.left = `${e.clientX + 15}px`;
+        tooltipEl.style.top = `${e.clientY + 15}px`;
+      }
+    });
+
+    /* ==========================================
+       8. MODALS & INFO DISPLAYS
+       ========================================== */
+    function showBlockDetailModal(block) {
+      playSound('magic');
+      const catObj = SCRATCH_CATEGORIES.find(c => c.id === block.category);
+      
+      document.getElementById('modal-icon-bg').style.backgroundColor = `${catObj.color}22`;
+      document.getElementById('modal-icon').style.color = catObj.color;
+      
+      const iconEl = document.getElementById('modal-icon');
+      iconEl.className = `fa-solid ${catObj.icon}`;
+
+      // Clean HTML tags from standard block texts when rendering in modal title
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = block.blockText;
+      document.getElementById('modal-title').innerText = tempDiv.textContent || tempDiv.innerText;
+      
+      document.getElementById('modal-category').innerText = `หมวดหมู่: ${catObj.name}`;
+      document.getElementById('modal-desc').innerText = block.tooltipDesc;
+      document.getElementById('modal-benefit').innerText = block.benefit;
+
+      document.getElementById('block-modal').classList.remove('hidden');
+    }
+
+    /* ==========================================
+       9. WORKSPACE DRAG/DOUBLE-CLICK DESIGN
+       ========================================== */
+    function initWorkspace() {
+      const workspace = document.getElementById('workspace');
+      workspace.addEventListener('dragover', (e) => e.preventDefault());
+    }
+
+    function addBlockToWorkspace(block) {
+      playSound('pop');
+      document.getElementById('workspace-placeholder').classList.add('hidden-force');
+
+      const catObj = SCRATCH_CATEGORIES.find(c => c.id === block.category);
+      const placedBlock = document.createElement('div');
+      
+      let shapeClass = "scratch-block";
+      if (block.style === 'hat') {
+        shapeClass += " scratch-block-hat";
+      } else if (block.style === 'c') {
+        shapeClass += " scratch-block-c";
+      }
+
+      placedBlock.className = `${shapeClass} select-none shadow text-[10px] font-bold text-white w-full max-w-[220px] flex items-center justify-between relative`;
+      placedBlock.style.backgroundColor = catObj.color;
+      
+      const uniqueId = Date.now() + Math.random().toString(36).substr(2, 5);
+      placedBlock.dataset.placedId = uniqueId;
+      placedBlock.dataset.blockId = block.id;
+
+      placedBlock.innerHTML = `
+        <span class="flex items-center gap-1 truncate">
+          <i class="fa-solid fa-puzzle-piece text-[8px] opacity-80"></i>
+          <span>${block.blockText}</span>
+        </span>
+        <button class="remove-block-btn text-white hover:text-red-300 transition-colors z-10" title="ลบออก">
+          <i class="fa-solid fa-square-minus text-sm"></i>
+        </button>
+      `;
+
+      placedBlock.querySelector('.remove-block-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        playSound('wrong');
+        placedBlock.remove();
+        workspaceBlocks = workspaceBlocks.filter(b => b.placedId !== uniqueId);
+        
+        if (workspaceBlocks.length === 0) {
+          document.getElementById('workspace-placeholder').classList.remove('hidden-force');
+        }
+      });
+
+      document.getElementById('workspace').appendChild(placedBlock);
+      workspaceBlocks.push({ placedId: uniqueId, blockId: block.id });
+    }
+
+    /* ==========================================
+       10. STAGE ACTUATOR - EXECUTION ENGINE
+       ========================================== */
+    const catEl = document.getElementById('scratch-cat');
+    const bubbleEl = document.getElementById('speech-bubble');
+    const bubbleText = document.getElementById('speech-text');
+
+    function updateStageStats() {
+      document.getElementById('sprite-x').innerText = Math.round(catX);
+      document.getElementById('sprite-y').innerText = Math.round(catY);
+      document.getElementById('sprite-dir').innerText = catDir;
+      document.getElementById('sprite-size').innerText = catSize;
+    }
+
+    function resetStage() {
+      playSound('wrong');
+      catX = 0;
+      catY = 0;
+      catDir = 90;
+      catSize = 100;
+
+      catEl.style.transform = `translate(0px, 0px) rotate(0deg) scale(1)`;
+      bubbleEl.classList.add('hidden');
+      updateStageStats();
+    }
+
+    function executeSingleBlockAction(blockId) {
+      playSound('magic');
+      
+      const targetElement = document.querySelector(`[data-block-id="${blockId}"]`);
+      if (targetElement) {
+        targetElement.classList.add('scale-105', 'brightness-125');
+        setTimeout(() => targetElement.classList.remove('scale-105', 'brightness-125'), 200);
+      }
+
+      switch (blockId) {
+        case 'move_10':
+          const rad = (catDir - 90) * Math.PI / 180;
+          catX += 10 * Math.cos(rad);
+          catY -= 10 * Math.sin(rad);
+          break;
+        case 'turn_right_15':
+          catDir = (catDir + 15) % 360;
+          break;
+        case 'turn_left_15':
+          catDir = (catDir - 15 + 360) % 360;
+          break;
+        case 'goto_random':
+          catX = Math.floor(Math.random() * 120) - 60;
+          catY = Math.floor(Math.random() * 120) - 60;
+          break;
+        case 'say_hello_2':
+          bubbleText.innerText = "Hello! 😺";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 2000);
+          break;
+        case 'say_hello':
+          bubbleText.innerText = "Hello! 😺";
+          bubbleEl.classList.toggle('hidden');
+          break;
+        case 'next_costume':
+          const costumes = ['🐱', '🐈', '🦁', '🐅'];
+          const currentCostume = catEl.innerText.trim();
+          let idx = costumes.indexOf(currentCostume);
+          let nxt = (idx + 1) % costumes.length;
+          catEl.innerText = costumes[nxt];
+          break;
+        case 'change_size_10':
+          catSize += 10;
+          if (catSize > 200) catSize = 50;
+          break;
+        case 'play_meow':
+          playSound('levelup');
+          bubbleText.innerText = "Meow! 🐾";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'play_pop':
+          playSound('pop');
+          bubbleText.innerText = "Pop! ✨";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'stop_all_sounds':
+          bubbleText.innerText = "เงียบเสียง 🔇";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'when_green_flag':
+          bubbleText.innerText = "เริ่มระบบ! 🚩";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'when_this_clicked':
+          bubbleText.innerText = "คุณจิ้มตัวฉัน! 👆";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'wait_1':
+          catEl.classList.add('opacity-50');
+          setTimeout(() => catEl.classList.remove('opacity-50'), 1000);
+          break;
+        case 'repeat_10':
+          catEl.classList.add('animate-spin');
+          setTimeout(() => catEl.classList.remove('animate-spin'), 1500);
+          break;
+        case 'forever_loop':
+          catEl.classList.toggle('animate-bounce');
+          break;
+        case 'touching_mouse':
+          bubbleText.innerText = "ตรวจสอบสัมผัส! 👀";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'ask_name':
+          bubbleText.innerText = "ยินดีต้อนรับสู่ Scratch นะ!";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1500);
+          break;
+        case 'pick_random_1_10':
+          const randVal = Math.floor(Math.random() * 10) + 1;
+          bubbleText.innerText = `สุ่มเลขได้: ${randVal}! 🎲`;
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1500);
+          break;
+        case 'join_hello_world':
+          bubbleText.innerText = "ต่อคำศัพท์! 🔗";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'set_var':
+          bubbleText.innerText = "ตัวแปร = 0 ⚙️";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+        case 'change_var_1':
+          bubbleText.innerText = "เพิ่มตัวแปรขึ้น 1 📈";
+          bubbleEl.classList.remove('hidden');
+          setTimeout(() => bubbleEl.classList.add('hidden'), 1000);
+          break;
+      }
+
+      catEl.style.transform = `translate(${catX}px, ${catY}px) rotate(${catDir - 90}deg) scale(${catSize / 100})`;
+      updateStageStats();
+    }
+
+    async function executeWorkspace() {
+      if (workspaceBlocks.length === 0) {
+        playSound('wrong');
+        return;
+      }
+      for (const blockData of workspaceBlocks) {
+        executeSingleBlockAction(blockData.blockId);
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+    }
+
+    /* ==========================================
+       11. MULTI-MODE MANAGEMENT SYSTEM
+       ========================================== */
+    function setAppMode(mode) {
+      stopFloatingGameLoop();
+
+      currentMode = mode;
+      playSound('pop');
+
+      const labelEl = document.getElementById('current-mode-label');
+      const missionBar = document.getElementById('mission-bar');
+      const missionText = document.getElementById('mission-instruction-text');
+      const qCountBadge = document.getElementById('question-count-badge');
+      
+      const standardLayout = document.getElementById('standard-app-layout');
+      const floatingArea = document.getElementById('floating-game-area');
+
+      standardLayout.classList.remove('hidden');
+      floatingArea.classList.add('hidden');
+
+      if (mode === 'learn') {
+        labelEl.innerText = '📖 เรียนรู้';
+        labelEl.className = 'font-bold text-pink-600';
+        
+        missionBar.className = "bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl p-4 shadow-lg text-white border-2 border-white flex flex-col gap-1 transition-all duration-300";
+        missionText.innerText = 'โหมดเรียนรู้: ลองนำเมาส์ไปชี้ที่บล็อก หรือคลิกบล็อกเพื่อทดลองดูการทำงานของบล็อกในหน้าต่างจำลองได้เลยนะเด็กๆ!';
+        qCountBadge.classList.add('hidden-force');
+        
+        gameScore = 0;
+        document.getElementById('game-score').innerText = `0 / 100`;
+      } else if (mode === 'game') {
+        labelEl.innerText = '🎯 เล่นเกมจับคู่';
+        labelEl.className = 'font-bold text-yellow-600 animate-pulse';
+        
+        missionBar.className = "bg-gradient-to-r from-yellow-400 via-orange-400 to-pink-500 rounded-2xl p-4 shadow-lg text-white border-2 border-white flex flex-col gap-1 transition-all duration-300";
+        qCountBadge.classList.remove('hidden-force');
+        
+        initMatchingGame();
+      } else if (mode === 'floating-game') {
+        labelEl.innerText = '⚡ บล็อกลอยฟ้า';
+        labelEl.className = 'font-bold text-emerald-500 animate-bounce';
+
+        standardLayout.classList.add('hidden');
+        floatingArea.classList.remove('hidden');
+
+        initFloatingBlocksGame();
+      }
+    }
+
+    /* ==========================================
+       12. GAME MODE A: MATCHING GAME ENGINE
+       ========================================== */
+    function initMatchingGame() {
+      gameScore = 0;
+      currentQuestionIndex = 0;
+      document.getElementById('game-score').innerText = `0 / 100`;
+      
+      const shuffled = [...SCRATCH_BLOCKS].sort(() => 0.5 - Math.random());
+      gameQuestions = shuffled.slice(0, TOTAL_QUESTIONS);
+
+      updateQuestionUI();
+    }
+
+    function updateQuestionUI() {
+      const currentQuestion = gameQuestions[currentQuestionIndex];
+      const categoryObj = SCRATCH_CATEGORIES.find(c => c.id === currentQuestion.category);
+      
+      const qCountBadge = document.getElementById('question-count-badge');
+      qCountBadge.innerText = `ข้อที่ ${currentQuestionIndex + 1}/${TOTAL_QUESTIONS}`;
+
+      const missionText = document.getElementById('mission-instruction-text');
+      missionText.innerHTML = `
+        <span class="text-white text-md">
+          🎯 ตามหาบล็อกที่มีคำว่า: <span class="bg-white/35 px-2 py-0.5 rounded text-yellow-100 font-extrabold underline">${currentQuestion.tooltipName}</span> 
+          ในกลุ่ม <span class="bg-black/20 px-2 py-0.5 rounded font-black text-white">${categoryObj.name}</span> ให้พบ!
+        </span>
+      `;
+
+      selectCategory(currentQuestion.category);
+    }
+
+    function validateGameAnswer(selectedBlockId) {
+      const correctBlock = gameQuestions[currentQuestionIndex];
+      
+      if (selectedBlockId === correctBlock.id) {
+        playSound('correct');
+        triggerFireworksEffect();
+        gameScore += 10;
+        document.getElementById('game-score').innerText = `${gameScore} / 100`;
+
+        currentQuestionIndex++;
+        if (currentQuestionIndex < TOTAL_QUESTIONS) {
+          updateQuestionUI();
+        } else {
+          playSound('levelup');
+          showCertificateDialog();
+        }
+      } else {
+        playSound('wrong');
+        showCustomShakeAlert(selectedBlockId);
+      }
+    }
+
+    function showCustomShakeAlert(blockId) {
+      const targetElement = document.querySelector(`[data-block-id="${blockId}"]`);
+      if (targetElement) {
+        targetElement.classList.add('bg-red-500', 'animate-bounce');
+        setTimeout(() => {
+          targetElement.classList.remove('bg-red-500', 'animate-bounce');
+        }, 800);
+      }
+      
+      const missionBar = document.getElementById('mission-bar');
+      missionBar.classList.add('from-red-500', 'to-red-700');
+      setTimeout(() => {
+        missionBar.classList.remove('from-red-500', 'to-red-700');
+      }, 500);
+    }
+
+    /* ==========================================
+       13. GAME MODE B: FLOATING SPEEDRUN GAME ENGINE (ENLARGED INTERFACE & KID OPTIMIZED)
+       ========================================== */
+    function initFloatingBlocksGame() {
+      gameScore = 0;
+      currentQuestionIndex = 0;
+      document.getElementById('game-score').innerText = `0 / 100`;
+
+      const shuffled = [...FLOATING_GAME_QUESTIONS].sort(() => 0.5 - Math.random());
+      gameQuestions = shuffled.slice(0, TOTAL_QUESTIONS);
+
+      startFloatingQuestion();
+    }
+
+    function startFloatingQuestion() {
+      if (currentQuestionIndex >= TOTAL_QUESTIONS) {
+        playSound('levelup');
+        showCertificateDialog();
+        return;
+      }
+
+      clearActiveFloatingBlocks();
+
+      const currentQuestion = gameQuestions[currentQuestionIndex];
+      
+      // Update floating board header elements with highly visible sizes
+      document.getElementById('floating-q-badge').innerText = `ข้อที่ ${currentQuestionIndex + 1}/${TOTAL_QUESTIONS}`;
+      document.getElementById('floating-question-text').innerHTML = `ตามหาบล็อก: <span class="text-yellow-300 font-extrabold text-base md:text-lg underline animate-pulse">${currentQuestion.question}</span>`;
+      document.getElementById('floating-feedback-text').innerText = "มองหาบล็อกสีที่ตรงกัน แล้วกดจิ้มเลยจ้า! 👇";
+      document.getElementById('floating-feedback-text').className = "text-xs text-white/80 animate-pulse";
+
+      spawnFloatingBlockElements(currentQuestion.correctId);
+    }
+
+    function spawnFloatingBlockElements(correctId) {
+      const viewport = document.getElementById('floating-container-viewport');
+      const correctBlockData = SCRATCH_BLOCKS.find(b => b.id === correctId);
+
+      const incorrectPool = SCRATCH_BLOCKS.filter(b => b.id !== correctId);
+      const chosenIncorrects = incorrectPool.sort(() => 0.5 - Math.random()).slice(0, 2);
+
+      const candidates = [correctBlockData, ...chosenIncorrects].sort(() => 0.5 - Math.random());
+
+      // Create enlarged floating block nodes
+      candidates.forEach((block, index) => {
+        const blockEl = document.createElement('div');
+        const catObj = SCRATCH_CATEGORIES.find(c => c.id === block.category);
+
+        let shapeClass = "scratch-block";
+        if (block.style === 'hat') {
+          shapeClass += " scratch-block-hat";
+        } else if (block.style === 'c') {
+          shapeClass += " scratch-block-c";
+        }
+
+        // Enlarged font, padding and easy-to-click rounded-2xl geometries
+        blockEl.className = `floating-game-block ${shapeClass} text-white text-xs sm:text-sm md:text-base font-extrabold py-4 px-6 rounded-2xl border-l-8 shadow-2xl transition-all duration-150 transform hover:scale-105`;
+        blockEl.style.backgroundColor = catObj.color;
+        blockEl.dataset.blockId = block.id;
+
+        blockEl.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <i class="fa-solid fa-puzzle-piece text-md text-yellow-200"></i>
+            <span>${block.blockText}</span>
+          </div>
+        `;
+
+        // Distribute horizontally across the enlarged viewport width
+        const startX = 10 + (index * 30) + (Math.random() * 5); 
+        blockEl.style.left = `${startX}%`;
+        blockEl.style.bottom = "-90px"; // Off-screen bottom start
+
+        viewport.appendChild(blockEl);
+
+        // EXTRA SLOW GENTLE SPEED: From original 0.8 down to very smooth 0.38
+        activeFloatingBlocks.push({
+          element: blockEl,
+          yPos: -90,
+          speed: 0.35 + (Math.random() * 0.2), 
+          correct: block.id === correctId,
+          id: block.id
+        });
+
+        blockEl.addEventListener('click', () => {
+          handleFloatingBlockClick(block.id, correctId, blockEl);
+        });
+      });
+
+      runFloatingAnimationLoop(correctId);
+    }
+
+    function runFloatingAnimationLoop(correctId) {
+      const viewport = document.getElementById('floating-container-viewport');
+      const limitY = viewport.clientHeight;
+
+      const animate = () => {
+        let allPassed = true;
+        let correctStillVisible = false;
+
+        activeFloatingBlocks.forEach(item => {
+          item.yPos += item.speed;
+          item.element.style.bottom = `${item.yPos}px`;
+
+          if (item.yPos < limitY + 30) {
+            allPassed = false;
+            if (item.correct) correctStillVisible = true;
+          } else {
+            item.element.classList.add('hidden');
+          }
+        });
+
+        // Missed correct block transition
+        if (!correctStillVisible && activeFloatingBlocks.some(i => i.correct && i.yPos >= limitY)) {
+          handleFloatingMiss();
+          return;
+        }
+
+        if (!allPassed) {
+          floatingAnimationId = requestAnimationFrame(animate);
+        }
+      };
+
+      floatingAnimationId = requestAnimationFrame(animate);
+    }
+
+    function handleFloatingBlockClick(clickedId, correctId, blockEl) {
+      if (clickedId === correctId) {
+        playSound('correct');
+        triggerFireworksEffect();
+        
+        const rect = blockEl.getBoundingClientRect();
+        createVisualSparkle(rect.left + rect.width/2, rect.top + rect.height/2);
+
+        gameScore += 10;
+        document.getElementById('game-score').innerText = `${gameScore} / 100`;
+        document.getElementById('floating-feedback-text').innerText = "เก่งมากเลยลูก! ถูกต้องแล้วจ้า 🎉 (+10 แต้ม)";
+        document.getElementById('floating-feedback-text').className = "text-sm text-emerald-400 font-extrabold animate-bounce";
+
+        currentQuestionIndex++;
+        setTimeout(startFloatingQuestion, 1400);
+      } else {
+        playSound('wrong');
+        blockEl.classList.add('bg-red-600', 'line-through', 'opacity-50');
+        document.getElementById('floating-feedback-text').innerText = "อุ๊ย! ยังไม่ใช่ตัวนี้จ้า ลองเลือกสีคำใบ้อีกครั้งนะ 🐱";
+        document.getElementById('floating-feedback-text').className = "text-sm text-rose-400 font-extrabold animate-shake";
+      }
+    }
+
+    function handleFloatingMiss() {
+      playSound('wrong');
+      document.getElementById('floating-feedback-text').innerText = "หมดเวลาจ้า! บล็อกที่ถูกต้องลอยลับไปอวกาศแล้ว 🎈";
+      document.getElementById('floating-feedback-text').className = "text-sm text-yellow-400 font-extrabold animate-pulse";
+
+      currentQuestionIndex++;
+      setTimeout(startFloatingQuestion, 2000);
+    }
+
+    function clearActiveFloatingBlocks() {
+      const viewport = document.getElementById('floating-container-viewport');
+      if (viewport) viewport.innerHTML = '';
+      activeFloatingBlocks = [];
+    }
+
+    function stopFloatingGameLoop() {
+      if (floatingAnimationId) {
+        cancelAnimationFrame(floatingAnimationId);
+      }
+      clearActiveFloatingBlocks();
+    }
+
+    /* ==========================================
+       14. CERTIFICATE GENERATION SYSTEM
+       ========================================== */
+    function showCertificateDialog() {
+      stopFloatingGameLoop();
+
+      const modal = document.getElementById('certificate-modal');
+      const inputArea = document.getElementById('cert-input-area');
+      const printArea = document.getElementById('cert-printable-area');
+
+      inputArea.classList.remove('hidden-force');
+      printArea.classList.add('hidden-force');
+
+      modal.classList.remove('hidden');
+    }
+
+    function processCertificateName() {
+      const nameInput = document.getElementById('student-name-input').value.trim();
+      if (!nameInput) {
+        playSound('wrong');
+        document.getElementById('student-name-input').focus();
+        document.getElementById('student-name-input').classList.add('border-red-500');
+        return;
+      }
+
+      playSound('levelup');
+      document.getElementById('student-name-input').classList.remove('border-red-500');
+
+      document.getElementById('certified-student-name').innerText = nameInput;
+      
+      const date = new Date();
+      const options = { year: 'numeric', month: 'long', day: 'numeric' };
+      document.getElementById('certified-date').innerText = date.toLocaleDateString('th-TH', options);
+
+      document.getElementById('cert-input-area').classList.add('hidden-force');
+      document.getElementById('cert-printable-area').classList.remove('hidden-force');
+    }
+
+    /* ==========================================
+       15. AR CAMERA & MEDIAPIPE HANDS ENGINE (BACKGROUND RENDER WITH FULL SKELETON)
+       ========================================== */
+    let cameraActive = false;
+    let cameraInstance = null;
+    let trackingCanvasCtx = null;
+    let handsInstance = null;
+
+    async function toggleARCamera() {
+      playSound('magic');
+      const videoElement = document.getElementById('webcam-video');
+      const trackingCanvas = document.getElementById('tracking-canvas');
+      const arInfoBadge = document.getElementById('ar-info-badge');
+      const btn = document.getElementById('btn-toggle-ar');
+
+      if (cameraActive) {
+        cameraActive = false;
+        videoElement.classList.add('hidden');
+        trackingCanvas.classList.add('hidden');
+        arInfoBadge.classList.add('hidden');
+        document.getElementById('magic-cursor').classList.add('hidden');
+        btn.innerHTML = `<i class="fa-solid fa-camera"></i> เปิดกล้องควบคุม (AR)`;
+        btn.className = "px-4 py-2 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 transition shadow-md flex items-center gap-2 border-b-4 border-indigo-800";
+        
+        if (cameraInstance) {
+          await cameraInstance.stop();
+        }
+      } else {
+        try {
+          videoElement.classList.remove('hidden');
+          trackingCanvas.classList.remove('hidden');
+          arInfoBadge.classList.remove('hidden');
+          document.getElementById('magic-cursor').classList.remove('hidden');
+          btn.innerHTML = `<i class="fa-solid fa-circle-stop"></i> ปิดระบบกล้อง (AR)`;
+          btn.className = "px-4 py-2 rounded-2xl font-bold text-white bg-red-500 hover:bg-red-600 transition shadow-md flex items-center gap-2 border-b-4 border-red-700";
+          
+          await initARTracking();
+          cameraActive = true;
+        } catch (err) {
+          console.error("Camera Setup Error: ", err);
+          videoElement.classList.add('hidden');
+          trackingCanvas.classList.add('hidden');
+          arInfoBadge.classList.add('hidden');
+          document.getElementById('magic-cursor').classList.add('hidden');
+          btn.innerHTML = `<i class="fa-solid fa-camera"></i> เปิดกล้องควบคุม (AR)`;
+          btn.className = "px-4 py-2 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 transition shadow-md flex items-center gap-2 border-b-4 border-indigo-800";
+          
+          showNotificationModal("ไม่พบกล้อง/เบราว์เซอร์บล็อกสิทธิ์", "ไม่เป็นไรนะเด็กๆ! สามารถเล่นด้วยหน้าจอสัมผัส หรือเมาส์มาตรฐานแทนได้ทันทีอย่างราบรื่นเลยจ้า 👍");
+        }
+      }
+    }
+
+    function showNotificationModal(title, body) {
+      const modal = document.getElementById('block-modal');
+      document.getElementById('modal-title').innerText = title;
+      document.getElementById('modal-category').innerText = "แจ้งเตือนอัจฉริยะ";
+      document.getElementById('modal-desc').innerText = body;
+      document.getElementById('modal-benefit').innerText = "คำแนะนำ: เช็คสิทธิ์อนุญาตเข้าถึงกล้องและเบราว์เซอร์ของคุณ";
+      document.getElementById('modal-icon-bg').style.backgroundColor = `#facc1522`;
+      document.getElementById('modal-icon').style.color = `#facc15`;
+      document.getElementById('modal-icon').className = "fa-solid fa-circle-exclamation";
+      modal.classList.remove('hidden');
+    }
+
+    async function initARTracking() {
+      const videoElement = document.getElementById('webcam-video');
+      const canvasElement = document.getElementById('tracking-canvas');
+      trackingCanvasCtx = canvasElement.getContext('2d');
+
+      resizeTrackingCanvas();
+
+      handsInstance = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      handsInstance.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.60,
+        minTrackingConfidence: 0.60
+      });
+
+      handsInstance.onResults(onHandResults);
+
+      cameraInstance = new Camera(videoElement, {
+        onFrame: async () => {
+          await handsInstance.send({ image: videoElement });
+        },
+        width: 640,
+        height: 480
+      });
+
+      await cameraInstance.start();
+    }
+
+    function resizeTrackingCanvas() {
+      const canvasElement = document.getElementById('tracking-canvas');
+      if (canvasElement) {
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+      }
+    }
+
+    let lastPinchState = false;
+
+    function onHandResults(results) {
+      const canvasElement = document.getElementById('tracking-canvas');
+      if (!trackingCanvasCtx) return;
+      
+      trackingCanvasCtx.save();
+      trackingCanvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        
+        drawHandSkeleton(landmarks);
+        
+        const indexTip = landmarks[8];
+        const thumbTip = landmarks[4];
+
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        const screenX = (1 - indexTip.x) * windowWidth;
+        const screenY = indexTip.y * windowHeight;
+
+        const cursorEl = document.getElementById('magic-cursor');
+        cursorEl.style.left = `${screenX}px`;
+        cursorEl.style.top = `${screenY}px`;
+
+        const dx = indexTip.x - thumbTip.x;
+        const dy = indexTip.y - thumbTip.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        const isPinching = distance < 0.045;
+
+        if (isPinching) {
+          cursorEl.classList.add('pinched');
+          if (!lastPinchState) {
+            triggerPinchClick(screenX, screenY);
+            lastPinchState = true;
+          }
+        } else {
+          cursorEl.classList.remove('pinched');
+          lastPinchState = false;
+        }
+      }
+      trackingCanvasCtx.restore();
+    }
+
+    function drawHandSkeleton(landmarks) {
+      const canvasElement = document.getElementById('tracking-canvas');
+      const width = canvasElement.width;
+      const height = canvasElement.height;
+
+      const connections = [
+        [0, 1], [1, 2], [2, 3], [3, 4], 
+        [0, 5], [5, 6], [6, 7], [7, 8], 
+        [5, 9], [9, 10], [10, 11], [11, 12], 
+        [9, 13], [13, 14], [14, 15], [15, 16], 
+        [13, 17], [17, 18], [18, 19], [19, 20], 
+        [0, 17] 
+      ];
+
+      trackingCanvasCtx.strokeStyle = 'rgba(244, 63, 94, 0.8)'; 
+      trackingCanvasCtx.lineWidth = 6;
+      trackingCanvasCtx.lineCap = 'round';
+
+      connections.forEach(([i, j]) => {
+        const pt1 = landmarks[i];
+        const pt2 = landmarks[j];
+        if (pt1 && pt2) {
+          trackingCanvasCtx.beginPath();
+          trackingCanvasCtx.moveTo(pt1.x * width, pt1.y * height);
+          trackingCanvasCtx.lineTo(pt2.x * width, pt2.y * height);
+          trackingCanvasCtx.stroke();
+        }
+      });
+
+      for (let i = 0; i < landmarks.length; i++) {
+        const pt = landmarks[i];
+        
+        if (i === 8 || i === 4) {
+          trackingCanvasCtx.fillStyle = '#10b981'; 
+          trackingCanvasCtx.beginPath();
+          trackingCanvasCtx.arc(pt.x * width, pt.y * height, 10, 0, 2 * Math.PI);
+        } else {
+          trackingCanvasCtx.fillStyle = '#facc15'; 
+          trackingCanvasCtx.beginPath();
+          trackingCanvasCtx.arc(pt.x * width, pt.y * height, 6, 0, 2 * Math.PI);
+        }
+        
+        trackingCanvasCtx.fill();
+        trackingCanvasCtx.strokeStyle = '#ffffff';
+        trackingCanvasCtx.lineWidth = 2;
+        trackingCanvasCtx.stroke();
+      }
+    }
+
+    function triggerPinchClick(x, y) {
+      playSound('magic');
+      const element = document.elementFromPoint(x, y);
+      if (element) {
+        element.click();
+        createVisualSparkle(x, y);
+      }
+    }
+
+    function createVisualSparkle(x, y) {
+      const sparkle = document.createElement('div');
+      sparkle.className = "fixed pointer-events-none w-8 h-8 rounded-full border-2 border-yellow-300 animate-ping z-50 transform -translate-x-1/2 -translate-y-1/2";
+      sparkle.style.left = `${x}px`;
+      sparkle.style.top = `${y}px`;
+      document.body.appendChild(sparkle);
+      setTimeout(() => sparkle.remove(), 800);
+    }
+
+    /* ==========================================
+       16. PARTICLES / FIREWORKS ENGINE
+       ========================================== */
+    let canvas, ctx;
+    let fireworks = [];
+    let particles = [];
+
+    function initFireworks() {
+      canvas = document.getElementById('fireworks-canvas');
+      ctx = canvas.getContext('2d');
+      resizeFireworksCanvas();
+      window.addEventListener('resize', () => {
+        resizeFireworksCanvas();
+        resizeTrackingCanvas();
+      });
+      updateFireworks();
+    }
+
+    function resizeFireworksCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    function triggerFireworksEffect() {
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * (canvas.height * 0.5) + (canvas.height * 0.1);
+          createExplosion(x, y);
+        }, i * 150);
+      }
+    }
+
+    function createExplosion(x, y) {
+      const colors = ['#f43f5e', '#ec4899', '#a855f7', '#6366f1', '#3b82f6', '#10b981', '#f59e0b'];
+      const pCount = 20;
+      for (let i = 0; i < pCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 2;
+        particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1,
+          size: Math.random() * 4 + 2,
+          decay: Math.random() * 0.03 + 0.015
+        });
+      }
+    }
+
+    function updateFireworks() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.06;
+        p.alpha -= p.decay;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+        } else {
+          ctx.save();
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      requestAnimationFrame(updateFireworks);
+    }
+  </script>
+</body>
+</html>
